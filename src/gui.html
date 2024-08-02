@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat em Rust</title>
+    <style>
+        #editor {
+            width: 100%;
+            height: 10vh;
+            border: 1px solid black;
+            border-radius: 10px;
+            margin-top: 2px;
+            padding: 10px;
+            box-sizing: border-box;
+            direction: ltr;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            overflow-x: hidden;
+            /* Esconde a barra de rolagem horizontal */
+        }
+
+        #messages {
+            width: 100%;
+            height: 70vh;
+            border: 1px solid black;
+            border-radius: 10px;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            word-wrap: break-word;
+            /* Quebra de linha automática para o texto longo */
+        }
+
+        #login {
+            margin-bottom: 20px;
+        }
+
+        #sendButton,
+        #mediaButton {
+            margin-top: 10px;
+        }
+
+        img.chat-image {
+            max-width: 200px;
+            max-height: 200px;
+            display: block;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="login">
+        <input type="text" id="username" placeholder="Nome de Usuário">
+        <input type="text" id="token" placeholder="Token JWT">
+        <button onclick="connect()">Conectar</button>
+    </div>
+
+    <div id="messages"></div>
+
+    <div id="editor" contenteditable="true" placeholder="Digite sua mensagem aqui..."></div>
+    <button id="sendButton">Enviar</button>
+    <input type="file" id="mediaInput" style="display:none" accept="image/*">
+    <button id="mediaButton" onclick="sendMedia()">Enviar Mídia</button>
+
+    <script>
+        let ws;
+        let username;
+
+        function connect() {
+            const token = document.getElementById('token').value;
+            username = document.getElementById('username').value;
+
+            if (!token || !username) {
+                alert('Nome de usuário e token são obrigatórios.');
+                return;
+            }
+
+            ws = new WebSocket('ws://127.0.0.1:8080');
+
+            ws.onopen = () => {
+                console.log('Conectado ao servidor WebSocket');
+                ws.send(`${username}:${token}`);
+            };
+
+            ws.onmessage = (event) => {
+                const messagesDiv = document.getElementById('messages');
+                const message = event.data;
+
+                try {
+                    const parsedMessage = JSON.parse(message);
+                    if (parsedMessage.type === 'media') {
+                        const img = document.createElement('img');
+                        img.src = `data:image/png;base64,${parsedMessage.data}`;
+                        img.alt = parsedMessage.filename;
+                        img.classList.add('chat-image');
+                        messagesDiv.appendChild(img);
+                    } else {
+                        throw new Error('Mensagem não é uma mídia');
+                    }
+                } catch (e) {
+                    // Mensagem de texto
+                    const messageElement = document.createElement('div');
+                    messageElement.textContent = message;
+                    messagesDiv.appendChild(messageElement);
+                }
+
+                messagesDiv.scrollTop = messagesDiv.scrollHeight; // Move a rolagem para o final
+            };
+
+            ws.onclose = () => {
+                console.log('Conexão WebSocket fechada');
+            };
+
+            ws.onerror = (error) => {
+                console.error('Erro no WebSocket:', error);
+            };
+        }
+
+        document.getElementById('sendButton').addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const editor = document.getElementById('editor');
+                const message = editor.innerText.trim();
+
+                if (message) {
+                    ws.send(`[${username}]: ${message}`);
+                    editor.innerText = ''; // Limpa o editor após o envio
+                }
+            }
+        });
+
+        document.getElementById('editor').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                document.getElementById('sendButton').click();
+            }
+        });
+
+        document.getElementById('editor').addEventListener('keypress', (event) => {
+            if (event.key === 'Enter' && event.shiftKey) {
+                document.execCommand('insertHTML', false, '<br><br>');
+                event.preventDefault();
+            }
+        });
+
+        function sendMedia() {
+            const mediaInput = document.getElementById('mediaInput');
+            mediaInput.click();
+
+            mediaInput.onchange = () => {
+                const file = mediaInput.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const data = reader.result.split(',')[1]; // Remove o prefixo
+                        const mediaMessage = {
+                            type: 'media',
+                            data: data,
+                            filename: file.name
+                        };
+                        ws.send(JSON.stringify(mediaMessage));
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,23 @@
+[package]
+name = "chatRust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+members = [
+    "jwt_generator",
+]
+
+[dependencies]
+futures-util = "0.3"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.23.1"
+jsonwebtoken = "9.3.0"
+url = "2.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0"
+serde_json = "1.0"
+dotenv = "0.15.0"
+base64 = "0.22.1"
